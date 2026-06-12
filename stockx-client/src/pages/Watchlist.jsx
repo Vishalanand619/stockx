@@ -9,7 +9,7 @@ import {
 const Watchlist = () => {
   const [watchlist, setWatchlist] = useState([]);
 
-  // 🔹 fetch data from backend
+  
   const loadWatchlist = async () => {
     try {
       const data = await getWatchlist();
@@ -23,11 +23,11 @@ const Watchlist = () => {
     loadWatchlist();
   }, []);
 
-  // 🔹 remove stock
+  
   const handleRemove = async (symbol) => {
     try {
       await removeWatchlist(symbol);
-      loadWatchlist(); // refresh list
+      loadWatchlist(); 
     } catch (err) {
       console.log("Remove error", err);
     }

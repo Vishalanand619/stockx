@@ -1,42 +1,60 @@
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import StockTable from "../components/StockTable";
+import MarketNews from "../components/ui/MarketNews";
 import { useState, useEffect } from "react";
 
 const Dashboard = () => {
-  const [portfolio, setPortfolio] = useState(() => {
-    return JSON.parse(localStorage.getItem("stockx_portfolio")) || [];
-  });
-
-  const [watchlist, setWatchlist] = useState(() => {
-    return JSON.parse(localStorage.getItem("stockx_watchlist")) || [];
-  });
+  const [portfolio, setPortfolio] = useState([]);
+  const [watchlist, setWatchlist] = useState([]);
 
   useEffect(() => {
-    localStorage.setItem("stockx_portfolio", JSON.stringify(portfolio));
-  }, [portfolio]);
+    const fetchData = async () => {
+      try {
+        const token = localStorage.getItem("stockx_token");
+        if (!token) return;
+        
 
-  useEffect(() => {
-    localStorage.setItem("stockx_watchlist", JSON.stringify(watchlist));
-  }, [watchlist]);
+        const res1 = await fetch("http://localhost:5000/api/trade/portfolio", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if(res1.ok) setPortfolio(await res1.json());
+
+        const res2 = await fetch("http://localhost:5000/api/watchlist", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if(res2.ok) setWatchlist(await res2.json());
+      } catch (err) {
+        console.error("Failed to load dashboard data", err);
+      }
+    };
+    fetchData();
+  }, []);
+
+
+  const totalValue = portfolio.reduce((acc, stock) => {
+    
+    const price = stock.avgPrice || stock.buyPrice || 0;
+    return acc + (price * stock.quantity);
+  }, 0);
 
   return (
-    <div className="bg-black text-white">
+    <div className="bg-black text-white min-h-screen">
       <Navbar />
 
       <div className="flex h-[calc(100vh-64px)]">
         <Sidebar />
 
-        {/* Main Content */}
+
         <div className="flex-1 p-6 space-y-6 overflow-auto">
 
-          {/* Cards Section */}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:shadow-lg transition-all">
               <h3 className="text-gray-400 text-sm">Portfolio Value</h3>
               <p className="text-2xl font-bold text-white mt-2">
-                ₹{portfolio.length * 1000}
+                ${totalValue.toFixed(2)}
               </p>
             </div>
 
@@ -63,13 +81,23 @@ const Dashboard = () => {
 
           </div>
 
-          {/* Table */}
-          <StockTable
-            portfolio={portfolio}
-            setPortfolio={setPortfolio}
-            watchlist={watchlist}
-            setWatchlist={setWatchlist}
-          />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            
+            <div className="lg:col-span-2">
+              <StockTable
+                portfolio={portfolio}
+                setPortfolio={setPortfolio}
+                watchlist={watchlist}
+                setWatchlist={setWatchlist}
+              />
+            </div>
+            
+            
+            <div className="lg:col-span-1">
+              <MarketNews />
+            </div>
+          </div>
 
         </div>
       </div>

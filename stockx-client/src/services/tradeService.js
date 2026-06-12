@@ -25,3 +25,9 @@ export const getPortfolio = async () => {
 
   return res.data;
 };
+
+export const getOrders = async () => {
+  const res = await API.get("/trade/orders");
+
+  return res.data;
+};

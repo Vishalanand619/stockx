@@ -7,7 +7,7 @@ import Portfolio from "./pages/Portfolio";
 import Watchlist from "./pages/Watchlist";
 import ProtectedRoute from "./components/ProtectedRoute";
 import StockDetail from "./pages/StockDetail";
-
+import ChatPage from "./pages/ChatPage";
 
 
 function App() {
@@ -25,9 +25,38 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/stock/:symbol" element={<StockDetail />} />
-         <Route path="/watchlist" element={<Watchlist />} /> 
-          <Route path="/portfolio" element={<Portfolio />} /> 
+        <Route
+          path="/stock/:symbol"
+          element={
+            <ProtectedRoute>
+              <StockDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/watchlist"
+          element={
+            <ProtectedRoute>
+              <Watchlist />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/portfolio"
+          element={
+            <ProtectedRoute>
+              <Portfolio />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/assistant"
+          element={
+            <ProtectedRoute>
+              <ChatPage />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

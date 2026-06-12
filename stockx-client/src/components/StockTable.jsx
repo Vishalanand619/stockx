@@ -1,11 +1,12 @@
 import BuyModal from "./BuyModal";
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import toast from "react-hot-toast";
-import { getStockQuote } from "../services/stockService";
 import { useNavigate } from "react-router-dom";
 import { buyStock } from "../services/tradeService";
 import { addWatchlist } from "../services/watchlistService";
+import { socket } from "../services/socket";
+import { Card, CardContent } from "./ui/Card";
+import { Button } from "./ui/Button";
 
 const StockTable = ({
   portfolio,
@@ -15,48 +16,66 @@ const StockTable = ({
 }) => {
   const [search, setSearch] = useState("");
   const [selectedStock, setSelectedStock] = useState(null);
-  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [stocks, setStocks] = useState([]);
+  
+ 
+  const prevPricesRef = useRef({});
 
-  const [stocks, setStocks] = useState([
-    { symbol: "AAPL", price: 189.32, change: "+1.2%" },
-    { symbol: "GOOGL", price: 2734.50, change: "-0.8%" },
-    { symbol: "TSLA", price: 244.12, change: "+2.5%" },
-    { symbol: "AMZN", price: 132.45, change: "+0.6%" }
-  ]);
+  useEffect(() => {
+    
+    socket.on("initial_prices", (data) => {
+      setStocks(data);
+      const priceMap = {};
+      data.forEach(s => priceMap[s.symbol] = s.price);
+      prevPricesRef.current = priceMap;
+    });
+
+    
+    socket.on("price_update", (updatedStocks) => {
+      setStocks(prev => {
+        return updatedStocks.map(newStock => {
+          const oldStock = prev.find(s => s.symbol === newStock.symbol);
+          let direction = "";
+          if (oldStock) {
+            if (newStock.price > oldStock.price) direction = "up";
+            else if (newStock.price < oldStock.price) direction = "down";
+          }
+          return { ...newStock, direction };
+        });
+      });
+      
+      const priceMap = {};
+      updatedStocks.forEach(s => priceMap[s.symbol] = s.price);
+      prevPricesRef.current = priceMap;
+    });
+
+    return () => {
+      socket.off("initial_prices");
+      socket.off("price_update");
+    };
+  }, []);
 
   const filteredStocks = stocks.filter((stock) =>
     stock.symbol.toLowerCase().includes(search.toLowerCase())
   );
 
-  // ✅ UPDATED BUY FUNCTION (API CALL)
   const handleBuy = async (stock, qty) => {
     try {
       await buyStock(stock.symbol, qty, stock.price);
-
       setPortfolio((prev) => {
         const existing = prev.find((item) => item.symbol === stock.symbol);
-
         if (existing) {
           return prev.map((item) =>
             item.symbol === stock.symbol
-              ? {
-                ...item,
-                quantity: item.quantity + Number(qty),
-              }
+              ? { ...item, quantity: item.quantity + Number(qty) }
               : item
           );
         }
-
-        return [
-          ...prev,
-          { ...stock, quantity: Number(qty), buyPrice: stock.price },
-        ];
+        return [...prev, { ...stock, quantity: Number(qty), buyPrice: stock.price }];
       });
-
-      toast.success(`${stock.symbol} bought`);
+      toast.success(`${stock.symbol} bought successfully!`);
       setSelectedStock(null);
-
     } catch (error) {
       toast.error("Buy failed");
       console.error(error);
@@ -64,128 +83,113 @@ const StockTable = ({
   };
 
   const toggleWatchlist = async (stock) => {
-  await addWatchlist(stock.symbol);
-
-  toast.success(`${stock.symbol} added to watchlist`);
-};
-
-  const handleRefreshPrices = async () => {
-    setLoading(true);
-
-    const updated = await Promise.all(
-      stocks.map(async (stock) => {
-        const data = await getStockQuote(stock.symbol);
-
-        if (!data) return stock;
-
-        return {
-          ...stock,
-          price: data.c || stock.price,
-          change: data.dp ? `${data.dp.toFixed(2)}%` : stock.change,
-        };
-      })
-    );
-
-    setStocks(updated);
-    setLoading(false);
+    try {
+      const isWatchlisted = watchlist.some(w => w.symbol === stock.symbol);
+      if (isWatchlisted) {
+        toast.error(`${stock.symbol} is already in watchlist`);
+        return;
+      }
+      
+      const newWatchlistItem = await addWatchlist(stock.symbol);
+      setWatchlist(prev => [...prev, newWatchlistItem]);
+      toast.success(`${stock.symbol} added to watchlist`);
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to add to watchlist");
+    }
   };
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      handleRefreshPrices();
-    }, 15000);
-
-    return () => clearInterval(interval);
-  }, [stocks]);
-
   return (
-    <div className="flex-1 p-6">
-      <input
-        type="text"
-        placeholder="Search stocks..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="w-full mb-6 p-3 rounded-lg bg-gray-900 border border-gray-700 focus:outline-none focus:border-green-400"
-      />
+    <Card className="flex-1 w-full max-w-5xl mx-auto my-6">
+      <CardContent>
+        <div className="flex justify-between items-center mb-6">
+          <input
+            type="text"
+            placeholder="Search stocks..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full max-w-md p-3 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-green-400 focus:ring-1 focus:ring-green-400 transition-all placeholder:text-gray-500"
+          />
+          <div className="flex items-center gap-2 text-green-400 text-sm font-semibold">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+            </span>
+            Live Market
+          </div>
+        </div>
 
-      <button
-        onClick={handleRefreshPrices}
-        className="mb-4 bg-blue-500 hover:bg-blue-400 text-black px-4 py-2 rounded-lg font-semibold"
-      >
-        Refresh Prices 🔄
-      </button>
-
-      {loading && (
-        <p className="text-blue-400 mb-4">Refreshing live prices...</p>
-      )}
-
-      <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-        <table className="w-full text-left">
-          <thead className="bg-gray-800 text-gray-300">
-            <tr>
-              <th className="p-4">Symbol</th>
-              <th className="p-4">Price</th>
-              <th className="p-4">Change</th>
-              <th className="p-4">Action</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {filteredStocks.map((stock) => (
-              <tr key={stock.symbol} className="border-t border-gray-800">
-                <td
-                  onClick={() => navigate(`/stock/${stock.symbol}`)}
-                  className="p-4 font-semibold text-blue-400 cursor-pointer"
-                >
-                  {stock.symbol}
-                </td>
-
-                <td className="p-4">${stock.price}</td>
-
-                <td
-                  className={`p-4 ${stock.change.includes("+")
-                      ? "text-green-400"
-                      : "text-red-400"
-                    }`}
-                >
-                  {stock.change}
-                </td>
-
-                <td className="p-4 space-x-2">
-                  <button
-                    onClick={() => setSelectedStock(stock)}
-                    className="bg-green-500 hover:bg-green-400 text-black px-4 py-1 rounded-lg font-semibold"
-                  >
-                    Buy
-                  </button>
-
-                  <button
-                    onClick={() => toggleWatchlist(stock)}
-                    className="bg-yellow-500 hover:bg-yellow-400 text-black px-3 py-1 rounded-lg font-semibold"
-                  >
-                    ★
-                  </button>
-                </td>
-              </tr>
-            ))}
-
-            {filteredStocks.length === 0 && (
+        <div className="overflow-hidden rounded-xl border border-white/10">
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-white/5 text-gray-400 text-sm uppercase tracking-wider">
               <tr>
-                <td colSpan="4" className="p-6 text-center text-gray-400">
-                  No stocks found
-                </td>
+                <th className="p-4 font-medium">Symbol</th>
+                <th className="p-4 font-medium text-right">Price</th>
+                <th className="p-4 font-medium text-right">Change</th>
+                <th className="p-4 font-medium text-center">Actions</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {filteredStocks.map((stock) => (
+                <tr 
+                  key={stock.symbol} 
+                  className={`border-t border-white/5 transition-colors hover:bg-white/5 ${
+                    stock.direction === "up" ? "animate-flash-green" : stock.direction === "down" ? "animate-flash-red" : ""
+                  }`}
+                >
+                  <td
+                    onClick={() => navigate(`/stock/${stock.symbol}`)}
+                    className="p-4 font-bold text-white cursor-pointer hover:text-green-400 transition-colors"
+                  >
+                    {stock.symbol}
+                  </td>
+                  <td className="p-4 text-right font-mono text-gray-200">
+                    ${stock.price.toFixed(2)}
+                  </td>
+                  <td className={`p-4 text-right font-medium ${
+                    stock.change.includes("+") ? "text-green-400" : stock.change === "0.00%" ? "text-gray-400" : "text-red-400"
+                  }`}>
+                    {stock.change}
+                  </td>
+                  <td className="p-4 flex items-center justify-center gap-3">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => setSelectedStock(stock)}
+                    >
+                      Buy
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="!px-2"
+                      onClick={() => toggleWatchlist(stock)}
+                      title="Add to Watchlist"
+                    >
+                      ★
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+              {filteredStocks.length === 0 && (
+                <tr>
+                  <td colSpan="4" className="p-8 text-center text-gray-500">
+                    No stocks matching your search.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
-      <BuyModal
-        stock={selectedStock}
-        onClose={() => setSelectedStock(null)}
-        onBuy={handleBuy}
-      />
-    </div>
+        {selectedStock && (
+          <BuyModal
+            stock={selectedStock}
+            onClose={() => setSelectedStock(null)}
+            onBuy={handleBuy}
+          />
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

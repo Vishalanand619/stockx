@@ -14,6 +14,7 @@ export const getStockQuote = async (symbol) => {
     return null;
   }
 };
+
 export const getStockHistory = async (symbol) => {
   try {
     const now = Math.floor(Date.now() / 1000);
@@ -23,7 +24,13 @@ export const getStockHistory = async (symbol) => {
       `${BASE_URL}/stock/candle?symbol=${symbol}&resolution=D&from=${oneWeekAgo}&to=${now}&token=${API_KEY}`
     );
 
-    if (res.data.s !== "ok") return [];
+    console.log("API RESPONSE:", res.data);
+
+    
+    if (res.data.s !== "ok" || !res.data.c || res.data.c.length === 0) {
+      console.log("No valid chart data");
+      return [];
+    }
 
     return res.data.c.map((price, index) => ({
       day: index,

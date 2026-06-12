@@ -1,106 +1,56 @@
-const Order = require("../models/Order");
-const Portfolio = require("../models/Portfolio");
+let mockPortfolio = [
+  { _id: "1", symbol: "AAPL", quantity: 10, avgPrice: 150 },
+  { _id: "2", symbol: "TSLA", quantity: 5, avgPrice: 200 }
+];
+
+let mockOrders = [];
 
 exports.buyStock = async (req, res) => {
   const { symbol, quantity, price } = req.body;
-
-  try {
-    const order = await Order.create({
-      user: req.user,
+  const qty = Number(quantity);
+  
+  const existing = mockPortfolio.find(p => p.symbol === symbol);
+  if (existing) {
+    const totalQty = existing.quantity + qty;
+    existing.avgPrice = ((existing.avgPrice * existing.quantity) + (price * qty)) / totalQty;
+    existing.quantity = totalQty;
+  } else {
+    mockPortfolio.push({
+      _id: Math.random().toString(36).substr(2, 9),
       symbol,
-      quantity,
-      price,
-      type: "BUY",
+      quantity: qty,
+      avgPrice: price
     });
-
-    let holding = await Portfolio.findOne({
-      user: req.user,
-      symbol,
-    });
-
-    if (holding) {
-      const totalQty = holding.quantity + quantity;
-
-      const newAvg =
-        (holding.avgPrice * holding.quantity +
-          price * quantity) /
-        totalQty;
-
-      holding.quantity = totalQty;
-      holding.avgPrice = newAvg;
-
-      await holding.save();
-    } else {
-      await Portfolio.create({
-        user: req.user,
-        symbol,
-        quantity,
-        avgPrice: price,
-      });
-    }
-
-    res.json(order);
-  } catch (err) {
-    res.status(500).json({ message: "Buy error" });
   }
-};exports.getPortfolio = async (req, res) => {
-  try {
-    const holdings = await Portfolio.find({
-      user: req.user,
-    });
+  
+  const newOrder = { _id: Math.random().toString(36).substr(2, 9), symbol, quantity: qty, price, type: "BUY", createdAt: new Date() };
+  mockOrders.push(newOrder);
+  
+  res.json(newOrder);
+};
 
-    res.json(holdings);
-  } catch (err) {
-    res.status(500).json({ message: "Portfolio error" });
-  }
+exports.getPortfolio = async (req, res) => {
+  res.json(mockPortfolio);
 };
 
 exports.sellStock = async (req, res) => {
   const { symbol, quantity, price } = req.body;
-
-  try {
-    const holding = await Portfolio.findOne({
-      user: req.user,
-      symbol,
-    });
-
-    if (!holding || holding.quantity < quantity) {
-      return res
-        .status(400)
-        .json({ message: "Not enough shares" });
+  const qty = Number(quantity);
+  
+  const existing = mockPortfolio.find(p => p.symbol === symbol);
+  if (existing && existing.quantity >= qty) {
+    existing.quantity -= qty;
+    if (existing.quantity === 0) {
+      mockPortfolio = mockPortfolio.filter(p => p.symbol !== symbol);
     }
-
-    holding.quantity -= quantity;
-
-    if (holding.quantity === 0) {
-      await holding.deleteOne();
-    } else {
-      await holding.save();
-    }
-
-    const order = await Order.create({
-      user: req.user,
-      symbol,
-      quantity,
-      price,
-      type: "SELL",
-    });
-
-    res.json(order);
-  } catch (err) {
-    res.status(500).json({ message: "Sell error" });
   }
+  
+  const newOrder = { _id: Math.random().toString(36).substr(2, 9), symbol, quantity: qty, price, type: "SELL", createdAt: new Date() };
+  mockOrders.push(newOrder);
+  
+  res.json(newOrder);
 };
 
-
 exports.getOrders = async (req, res) => {
-  try {
-    const orders = await Order.find({
-      user: req.user,
-    }).sort({ createdAt: -1 });
-
-    res.json(orders);
-  } catch (err) {
-    res.status(500).json({ message: "Order fetch error" });
-  }
+  res.json(mockOrders.sort((a, b) => b.createdAt - a.createdAt));
 };

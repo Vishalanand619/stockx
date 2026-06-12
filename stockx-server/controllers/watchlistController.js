@@ -1,53 +1,26 @@
-const Watchlist = require("../models/Watchlist");
+let mockWatchlist = [
+  { _id: "1", symbol: "AAPL" },
+  { _id: "2", symbol: "GOOGL" }
+];
 
 exports.addToWatchlist = async (req, res) => {
   const { symbol } = req.body;
-
-  try {
-    const exists = await Watchlist.findOne({
-      user: req.user,
-      symbol,
-    });
-
-    if (exists)
-      return res.status(400).json({
-        message: "Already in watchlist",
-      });
-
-    const item = await Watchlist.create({
-      user: req.user,
-      symbol,
-    });
-
-    res.json(item);
-  } catch (err) {
-    res.status(500).json({ message: "Watchlist error" });
+  const exists = mockWatchlist.find(w => w.symbol === symbol);
+  if (exists) {
+    return res.status(400).json({ message: "Already in watchlist" });
   }
+  
+  const newItem = { _id: Math.random().toString(36).substr(2, 9), symbol };
+  mockWatchlist.push(newItem);
+  res.json(newItem);
 };
 
 exports.getWatchlist = async (req, res) => {
-  try {
-    const items = await Watchlist.find({
-      user: req.user,
-    });
-
-    res.json(items);
-  } catch (err) {
-    res.status(500).json({ message: "Watchlist fetch error" });
-  }
+  res.json(mockWatchlist);
 };
 
 exports.removeFromWatchlist = async (req, res) => {
   const { symbol } = req.params;
-
-  try {
-    await Watchlist.deleteOne({
-      user: req.user,
-      symbol,
-    });
-
-    res.json({ message: "Removed" });
-  } catch (err) {
-    res.status(500).json({ message: "Remove error" });
-  }
+  mockWatchlist = mockWatchlist.filter(w => w.symbol !== symbol);
+  res.json({ message: "Removed" });
 };
