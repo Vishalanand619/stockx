@@ -15,12 +15,14 @@ const Dashboard = () => {
         if (!token) return;
         
 
-        const res1 = await fetch("http://localhost:5000/api/trade/portfolio", {
+        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+        const res1 = await fetch(`${API_URL}/api/trade/portfolio`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if(res1.ok) setPortfolio(await res1.json());
 
-        const res2 = await fetch("http://localhost:5000/api/watchlist", {
+        const res2 = await fetch(`${API_URL}/api/watchlist`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if(res2.ok) setWatchlist(await res2.json());

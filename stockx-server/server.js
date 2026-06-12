@@ -20,7 +20,9 @@ const server = http.createServer(app);
 setupSocket(server);
 
 app.use(cors({
-  origin: "*"
+  origin: process.env.CLIENT_URL || "*",
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
 app.use(express.json());
 
